@@ -118,3 +118,12 @@ export function onFinalResult(cb: (e: string) => void) {
 export function onResult(cb: (e: string) => void) {
   return Vosk.onResult(cb);
 }
+
+/** Event listener for volume changes during capture
+ *
+ * @param cb - Callback to be called with the normalized RMS level
+ * @returns A subscription to the event
+ */
+export function onVolumeChanged(cb: (level: number) => void) {
+  return Vosk.onVolumeChanged(cb);
+}

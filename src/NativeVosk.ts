@@ -11,6 +11,18 @@ export type VoskOptions = {
    * Timeout in milliseconds to listen.
    */
   timeout?: number;
+  /**
+   * Optional file path to persist the captured audio.
+   */
+  recordingPath?: string;
+  /**
+   * Recording output format. Defaults to wav when recordingPath is provided.
+   */
+  recordingFormat?: 'wav' | 'pcm';
+  /**
+   * Android-only input source hint for the recorder.
+   */
+  audioSource?: 'voice_recognition' | 'mic';
 };
 
 export interface Spec extends TurboModule {
@@ -28,6 +40,7 @@ export interface Spec extends TurboModule {
   readonly onFinalResult: CodegenTypes.EventEmitter<string>;
   readonly onError: CodegenTypes.EventEmitter<string>;
   readonly onTimeout: CodegenTypes.EventEmitter<void>;
+  readonly onVolumeChanged: CodegenTypes.EventEmitter<number>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('Vosk');
