@@ -1,5 +1,5 @@
 {
-  "name": "react-native-vosk",
+  "name": "@pygusdev/react-native-vosk-speech",
   "version": "2.1.7",
   "description": "Speech recognition module for react native using Vosk library",
   "types": "lib/typescript/src/index.d.ts",
@@ -48,16 +48,16 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/riderodd/react-native-vosk.git"
+    "url": "git+https://github.com/pygusdev/react-native-vosk-speech.git"
   },
   "author": "riderodd <contact@jg-web.site> (https://github.com/riderodd)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/riderodd/react-native-vosk/issues"
+    "url": "https://github.com/pygusdev/react-native-vosk-speech/issues"
   },
-  "homepage": "https://github.com/riderodd/react-native-vosk#readme",
+  "homepage": "https://github.com/pygusdev/react-native-vosk-speech#readme",
   "publishConfig": {
-    "registry": "https://registry.npmjs.org/"
+    "registry": "https://npm.pkg.github.com"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^19.8.1",
