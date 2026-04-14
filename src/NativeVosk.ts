@@ -23,6 +23,14 @@ export type VoskOptions = {
    * Android-only input source hint for the recorder.
    */
   audioSource?: 'voice_recognition' | 'mic';
+  /**
+   * When true, stop() will NOT reset the AVAudioSession back to Playback category.
+   * Use this when the caller manages the audio session externally (e.g., keeping
+   * .playAndRecord active across multiple start/stop cycles).
+   * Default: false (existing behavior preserved).
+   * iOS only — ignored on Android.
+   */
+  preserveAudioSessionOnStop?: boolean;
 };
 
 export interface Spec extends TurboModule {

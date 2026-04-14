@@ -29,6 +29,7 @@ static void *kVoskProcessingQueueKey = &kVoskProcessingQueueKey;
   FILE *_Nullable _audioFile;
   uint32_t _totalBytesWritten;
   double _recordingSampleRate;
+  BOOL _preserveAudioSessionOnStop;
 }
 RCT_EXPORT_MODULE()
 
@@ -51,6 +52,7 @@ RCT_EXPORT_MODULE()
     _tapInstalled = NO;
     _pendingTap = NO;
     _tapRetryCount = 0;
+    _preserveAudioSessionOnStop = NO;
   }
   return self;
 }
@@ -225,6 +227,11 @@ RCT_EXPORT_MODULE()
   }
   if (options.timeout()) {
     timeoutMs = *(options.timeout());
+  }
+  // Reset to default (false) every start — caller must opt-in each time
+  _preserveAudioSessionOnStop = NO;
+  if (options.preserveAudioSessionOnStop()) {
+    _preserveAudioSessionOnStop = *(options.preserveAudioSessionOnStop()) ? YES : NO;
   }
   NSString *recordingPath = nil;
   NSString *recordingFormat = @"wav";
@@ -614,20 +621,22 @@ RCT_EXPORT_MODULE()
   _recordingPath = nil;
   _recordingFormat = nil;
 
-  AVAudioSession *audioSession = [AVAudioSession sharedInstance];
-  NSError *err = nil;
-  if (@available(iOS 10.0, *)) {
-    [audioSession setCategory:AVAudioSessionCategoryPlayback
-                         mode:AVAudioSessionModeDefault
-                      options:0
-                        error:&err];
-  } else {
-    [audioSession setCategory:AVAudioSessionCategoryPlayback error:&err];
+  if (!_preserveAudioSessionOnStop) {
+    AVAudioSession *audioSession = [AVAudioSession sharedInstance];
+    NSError *err = nil;
+    if (@available(iOS 10.0, *)) {
+      [audioSession setCategory:AVAudioSessionCategoryPlayback
+                           mode:AVAudioSessionModeDefault
+                        options:0
+                          error:&err];
+    } else {
+      [audioSession setCategory:AVAudioSessionCategoryPlayback error:&err];
+    }
+    [audioSession
+          setActive:NO
+        withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+              error:&err];
   }
-  [audioSession
-        setActive:NO
-      withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-            error:&err];
 }
 
 // WAV header helpers — values derived from actual sample rate, not hardcoded.
