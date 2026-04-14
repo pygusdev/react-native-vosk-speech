@@ -37,6 +37,17 @@ export interface Spec extends TurboModule {
   loadModel: (path: string) => Promise<void>;
   unload: () => void;
 
+  /**
+   * Pre-compiles the grammar FST and creates the Vosk recognizer WITHOUT
+   * opening the microphone. A subsequent start() call reuses this recognizer
+   * and only opens the audio engine — cutting recognizer init time from the
+   * start() critical path (~200-1000ms depending on grammar complexity).
+   *
+   * Safe to call during instruction audio playback or any other moment before
+   * the mic is needed.
+   */
+  prepare: (options?: VoskOptions) => Promise<void>;
+
   start: (options?: VoskOptions) => Promise<void>;
   stop: () => void;
 

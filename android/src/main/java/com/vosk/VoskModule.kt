@@ -130,6 +130,41 @@ class VoskModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Pre-creates the Vosk Recognizer with the given grammar without starting
+   * the SpeechService (which opens the microphone). A subsequent start() call
+   * will reuse this recognizer and only open the mic, cutting recognizer init
+   * time from the start() critical path.
+   *
+   * If a recognizer was already prepared (and not consumed by start), this
+   * frees the previous one and creates a new one — useful for re-prepare with
+   * different grammar.
+   */
+  override fun prepare(options: ReadableMap?, promise: Promise) {
+    if (model == null) {
+      promise.reject(IOException("Model is not loaded yet"))
+      return
+    }
+    if (speechService != null) {
+      // Already running — recognizer is already created. No-op.
+      promise.resolve("Recognizer already running")
+      return
+    }
+    try {
+      recognizer?.close()
+      recognizer =
+              if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
+                Recognizer(model, sampleRate, makeGrammar(options.getArray("grammar")!!))
+              } else {
+                Recognizer(model, sampleRate)
+              }
+      promise.resolve("Recognizer prepared")
+    } catch (e: Exception) {
+      recognizer = null
+      promise.reject(e)
+    }
+  }
+
   override fun start(options: ReadableMap?, promise: Promise) {
     if (model == null) {
       promise.reject(IOException("Model is not loaded yet"))
@@ -140,12 +175,15 @@ class VoskModule(reactContext: ReactApplicationContext) :
       return
     }
     try {
-      recognizer =
-              if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
-                Recognizer(model, sampleRate, makeGrammar(options.getArray("grammar")!!))
-              } else {
-                Recognizer(model, sampleRate)
-              }
+      // If prepare() already created the recognizer, reuse it. Otherwise create here.
+      if (recognizer == null) {
+        recognizer =
+                if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
+                  Recognizer(model, sampleRate, makeGrammar(options.getArray("grammar")!!))
+                } else {
+                  Recognizer(model, sampleRate)
+                }
+      }
       speechService = SpeechService(recognizer, sampleRate)
       val started =
               if (options != null && options.hasKey("timeout") && !options.isNull("timeout")) {

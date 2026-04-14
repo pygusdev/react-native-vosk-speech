@@ -43,6 +43,26 @@ async function requestRecordPermission() {
 }
 
 /**
+ * Pre-compiles the grammar FST and creates the recognizer WITHOUT opening
+ * the microphone. A subsequent `start()` reuses this recognizer and only
+ * opens the audio engine — saving ~200-1000ms in the start() critical path.
+ *
+ * Use this during instruction audio playback or any other moment before the
+ * mic is actually needed. Does not require microphone permission.
+ *
+ * @param options - Optional settings (only `grammar` is used; other fields ignored).
+ * @returns A promise that resolves when the recognizer has been pre-compiled.
+ * @example
+ *   // During instruction audio playback:
+ *   prepare({ grammar: ['ba', 'be', '[unk]'] });
+ *   // Later, when user presses mic:
+ *   start({ grammar: ['ba', 'be', '[unk]'], timeout: 8000 });
+ */
+export function prepare(options?: VoskOptions) {
+  return Vosk.prepare(options);
+}
+
+/**
  * Asks for recording permissions then starts the recognizer.
  *
  * @param options - Optional settings for the recognizer.
