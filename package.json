@@ -1,6 +1,6 @@
 {
   "name": "@pygusdev/react-native-vosk-speech",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Speech recognition module for react native using Vosk library",
   "types": "lib/typescript/src/index.d.ts",
   "main": "lib/commonjs/index.js",

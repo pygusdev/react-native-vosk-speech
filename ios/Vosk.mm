@@ -30,6 +30,10 @@ static void *kVoskProcessingQueueKey = &kVoskProcessingQueueKey;
   uint32_t _totalBytesWritten;
   double _recordingSampleRate;
   BOOL _preserveAudioSessionOnStop;
+  // prepare() metadata — used by start() to detect mismatches and recreate
+  // the recognizer when needed (sample rate or grammar changed).
+  double _preparedSampleRate;
+  NSArray<NSString *> *_Nullable _preparedGrammar;
 }
 RCT_EXPORT_MODULE()
 
@@ -53,6 +57,8 @@ RCT_EXPORT_MODULE()
     _pendingTap = NO;
     _tapRetryCount = 0;
     _preserveAudioSessionOnStop = NO;
+    _preparedSampleRate = 0;
+    _preparedGrammar = nil;
   }
   return self;
 }
@@ -243,11 +249,16 @@ RCT_EXPORT_MODULE()
       self->_recognizer = vosk_recognizer_new(self->_currentModel.model, (float)sampleRate);
     }
     if (!self->_recognizer) {
+      self->_preparedSampleRate = 0;
+      self->_preparedGrammar = nil;
       dispatch_async(dispatch_get_main_queue(), ^{
         reject(@"prepare", @"Recognizer initialization failed", nil);
       });
       return;
     }
+    // Remember what we prepared so start() can detect mismatches
+    self->_preparedSampleRate = sampleRate;
+    self->_preparedGrammar = grammar;
     dispatch_async(dispatch_get_main_queue(), ^{
       resolve(nil);
     });
@@ -427,8 +438,19 @@ RCT_EXPORT_MODULE()
       dispatch_async(self->_processingQueue, ^{ // recognizer init off main
         __strong __typeof(self) self = weakSelf;
         if (!self || !self->_isRunning) return;
-        // If prepare() already created the recognizer, reuse it (skip ~200-1000ms).
-        // Only create if absent.
+        // If prepare() already created the recognizer, reuse it ONLY if the
+        // grammar and sample rate match. Otherwise, free and recreate.
+        BOOL canReusePrepared = NO;
+        if (self->_recognizer != NULL) {
+          BOOL grammarMatches = (grammar == nil && self->_preparedGrammar == nil)
+            || (grammar != nil && self->_preparedGrammar != nil && [grammar isEqualToArray:self->_preparedGrammar]);
+          BOOL sampleRateMatches = fabs(self->_preparedSampleRate - sampleRate) < 1.0;
+          canReusePrepared = grammarMatches && sampleRateMatches;
+          if (!canReusePrepared) {
+            vosk_recognizer_free(self->_recognizer);
+            self->_recognizer = NULL;
+          }
+        }
         if (self->_recognizer == NULL) {
           if (grammar != nil && grammar.count > 0) {
             NSError *jsonErr = nil;
@@ -443,6 +465,9 @@ RCT_EXPORT_MODULE()
             self->_recognizer = vosk_recognizer_new(self->_currentModel.model, (float)sampleRate);
           }
         }
+        // Clear prepared metadata once consumed (or replaced)
+        self->_preparedSampleRate = 0;
+        self->_preparedGrammar = nil;
         if (!self->_recognizer) {
           dispatch_async(dispatch_get_main_queue(), ^{
             [self emitOnError:@"Recognizer initialization failed (null)"];
@@ -624,6 +649,21 @@ RCT_EXPORT_MODULE()
 - (void)unload {
   if (_isRunning) {
     [self stopInternalWithoutEvents:NO];
+  }
+  // Free any prepared (but not started) recognizer — prevents reuse with a
+  // different model after loadModel() is called again.
+  if (_recognizer) {
+    if (dispatch_get_specific(kVoskProcessingQueueKey)) {
+      vosk_recognizer_free(_recognizer);
+      _recognizer = NULL;
+    } else {
+      dispatch_sync(_processingQueue, ^{
+        if (self->_recognizer) {
+          vosk_recognizer_free(self->_recognizer);
+          self->_recognizer = NULL;
+        }
+      });
+    }
   }
   // Reset all flags to ensure consistent state regardless of running state
   _isStarting = NO;

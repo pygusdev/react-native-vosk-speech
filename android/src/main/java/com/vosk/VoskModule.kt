@@ -26,6 +26,10 @@ class VoskModule(reactContext: ReactApplicationContext) :
   private var recognizer: Recognizer? = null
   private var sampleRate = 16000.0f
   private var isStopping = false
+  // Snapshot of the grammar used to create a prepared (but not started)
+  // recognizer. start() compares against its own grammar to decide whether
+  // to reuse the prepared recognizer or rebuild it.
+  private var preparedGrammar: String? = null
 
   override fun getName(): String {
     return NAME
@@ -152,15 +156,19 @@ class VoskModule(reactContext: ReactApplicationContext) :
     }
     try {
       recognizer?.close()
-      recognizer =
-              if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
-                Recognizer(model, sampleRate, makeGrammar(options.getArray("grammar")!!))
-              } else {
-                Recognizer(model, sampleRate)
-              }
+      val grammarStr = if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
+        makeGrammar(options.getArray("grammar")!!)
+      } else null
+      recognizer = if (grammarStr != null) {
+        Recognizer(model, sampleRate, grammarStr)
+      } else {
+        Recognizer(model, sampleRate)
+      }
+      preparedGrammar = grammarStr
       promise.resolve("Recognizer prepared")
     } catch (e: Exception) {
       recognizer = null
+      preparedGrammar = null
       promise.reject(e)
     }
   }
@@ -175,15 +183,22 @@ class VoskModule(reactContext: ReactApplicationContext) :
       return
     }
     try {
-      // If prepare() already created the recognizer, reuse it. Otherwise create here.
-      if (recognizer == null) {
-        recognizer =
-                if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
-                  Recognizer(model, sampleRate, makeGrammar(options.getArray("grammar")!!))
-                } else {
-                  Recognizer(model, sampleRate)
-                }
+      val requestedGrammar = if (options != null && options.hasKey("grammar") && !options.isNull("grammar")) {
+        makeGrammar(options.getArray("grammar")!!)
+      } else null
+      // Reuse prepared recognizer ONLY if the grammar matches. Otherwise rebuild.
+      if (recognizer != null && preparedGrammar != requestedGrammar) {
+        recognizer?.close()
+        recognizer = null
       }
+      if (recognizer == null) {
+        recognizer = if (requestedGrammar != null) {
+          Recognizer(model, sampleRate, requestedGrammar)
+        } else {
+          Recognizer(model, sampleRate)
+        }
+      }
+      preparedGrammar = null  // consumed
       speechService = SpeechService(recognizer, sampleRate)
       val started =
               if (options != null && options.hasKey("timeout") && !options.isNull("timeout")) {
@@ -219,6 +234,7 @@ class VoskModule(reactContext: ReactApplicationContext) :
           it.close()
           recognizer = null
         }
+        preparedGrammar = null
       } catch (e: Exception) {
         Log.w(NAME, "Error during cleanup in cleanRecognizer", e)
       } finally {
